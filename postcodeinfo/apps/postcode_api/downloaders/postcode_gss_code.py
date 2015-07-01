@@ -1,47 +1,46 @@
+# -*- encoding: utf-8 -*-
+"""
+Postcode GSS code downloader class
+"""
+
 import requests
-import json
 
-from .download_manager import DownloadManager
+from .filesystem import LocalCache
+from .http import HttpDownloader
+from .s3 import S3Cache
 
 
-class PostcodeGssCodeDownloader(object):
+class PostcodeGssCodeDownloader(LocalCache, S3Cache, HttpDownloader):
 
-    def download(self, target_dir='/tmp/', force=False):
-        most_recent_file_url = self._target_href()
+    def __init__(self):
+        super(PostcodeGssCodeDownloader, self).__init__(None)
+        self.index_url = (
+            'https://geoportal.statistics.gov.uk/geoportal'
+            '/rest/find/document?searchText=NSPL&f=pjson')
 
-        dl_mgr = DownloadManager()
+    def download(self, dest_dir=None):
+        """
+        Fetch the URL of the latest NSPL CSV and download it.
+        """
 
-        return dl_mgr.retrieve(most_recent_file_url,
-            target_dir,
-            force)
+        index = requests.get(self.index_url).json()
 
-    def _target_href(self):
-        index_json = self._get_index_json()
-        index = json.loads(index_json)
+        def is_nspl_record(record):
+            return record['title'].startswith(
+                'National Statistics Postcode Lookup (UK)')
 
-        return self._get_most_recent_file_url(index)
+        nspl_records = filter(is_nspl_record, index['records'])
 
-    def _get_index_json(self):
-        return requests.get(self.index_json_url()).text
+        def updated(record):
+            return record['updated']
 
-    def _get_most_recent_file_url(self, parsed_index):
-        nspl_elements = filter(
-            self._is_nspl_csv_link, parsed_index['records'])
-        most_recent = sorted(
-            nspl_elements, key=lambda e: e['updated'], reverse=True)[0]
-        return self._file_url(most_recent['links'])
+        newest_record = sorted(nspl_records, key=updated, reverse=True)[0]
 
-    def index_json_url(self):
-        return 'https://geoportal.statistics.gov.uk/geoportal'\
-            '/rest/find/document?searchText=NSPL&f=pjson'
+        def is_file_link(link):
+            return link['type'] == 'open'
 
-    def _is_nspl_csv_link(self, element):
-        return element['title'].startswith(
-            'National Statistics Postcode Lookup (UK)')
+        link = filter(is_file_link, newest_record['links'])[0]
+        self.url = link['href']
 
-    def _file_url(self, links):
-        link = filter(self._is_file_link, links)[0]
-        return link['href']
-
-    def _is_file_link(self, link):
-        return link['type'] == 'open'
+        return super(PostcodeGssCodeDownloader, self).download(
+            dest_dir=dest_dir)

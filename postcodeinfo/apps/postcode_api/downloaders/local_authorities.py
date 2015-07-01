@@ -1,17 +1,15 @@
+# -*- encoding: utf-8 -*-
+"""
+Local Authorities downloader class
+"""
 
-from .download_manager import DownloadManager
+from .filesystem import LocalCache
+from .http import HttpDownloader
+from .s3 import S3Cache
 
 
-class LocalAuthoritiesDownloader(object):
+class LocalAuthoritiesDownloader(LocalCache, S3Cache, HttpDownloader):
 
-    def download(self, target_dir='/tmp/', force=False):
-        most_recent_file_url = self._target_href()
-
-        dl_mgr = DownloadManager()
-
-        return dl_mgr.retrieve(most_recent_file_url,
-                               target_dir,
-                               force)
-
-    def _target_href(self):
-        return 'http://opendatacommunities.org/data/dev-local-authorities/dump'
+    def __init__(self):
+        super(LocalAuthoritiesDownloader, self).__init__(
+            'http://opendatacommunities.org/data/dev-local-authorities/dump')

@@ -1,95 +1,111 @@
+# -*- encoding: utf-8 -*-
+"""
+FTP downloader class
+"""
+
 import ftplib
 import logging
 import re
 
-from postcode_api.downloaders.download_manager import DownloadManager
+from postcode_api.downloaders import Downloader
 
 
-class FTPDownloadManager(DownloadManager):
+class FTPDownloader(Downloader):
+    """
+    Downloads files from a FTP server
+    """
 
-    def __init__(self):
-        self.ftp_client = None
+    def __init__(self, host, username, password, path=None):
+        self.host = host
+        self.path = path
+        self.username = username
+        self.password = password
+        self._ftp = None
+        self._headers = {}
 
-    def open(self, host, username, password):
-        if self.ftp_client:
-            self.ftp_client.close()
-
-        self.ftp_client = self.ftp_login(host, username, password)
-        return self.ftp_client
-
-    def ftp_login(self, host, username, password):
-        ftp = ftplib.FTP(host)
-        ftp.login(username, password)
-        return ftp
-
-    def list_files(self, pattern):
-        """ pattern to match against files (e.g. subdir/*.csv) or '.' """
-        headers = self.get_headers(pattern)
-        return map(lambda f: f['url'], headers)
-
-    def download_all_if_needed(self, pattern, dirpath, force=False):
-        files = self.list_files(pattern)
-        downloads = []
-        logging.debug('%i files matching %s' % (len(files), pattern))
-        for file in files:
-            dl = self.retrieve(file, dirpath, force)
-            if dl:
-                downloads.append(dl)
-
-        return downloads
-
-    def get_headers(self, pattern=None):
-        file_list = self.files_in_dir(pattern)
-        headers = map(lambda f: self.interpret_ls_line(f), file_list)
-        return headers
-
-    def files_in_dir(self, pattern=None):
-        files = []
-        self.ftp_client.dir(pattern, lambda f: files.append(f))
-        return files
-
-    def interpret_ls_line(self, line):
-        """ NOTE: this is VERY brittle, but the OS FTP server doesn't
-            support the MSLD command (which is intended to produce
-            machine-readable output) so we don't have many other options.
-            Here we're trying to emulate as closely as possible the headers
-            that we would get back from a HTTP HEAD request
+    def download(self, pattern, dest_dir):
         """
-        cols = re.split(' +', line)
+        Execute the download.
+        Returns a list of downloaded files.
+        """
 
-        dic = {
-            'permissions': cols[0],
-            'content-length': int(cols[4]),
-            'last-modified': ' '.join(cols[5:8]),
-            'url': cols[-1],
-            'etag': None
-        }
-        return dic
+        files = self._list(pattern)
+        logging.debug('%i files matching %s' % (len(files), pattern))
 
-    def download_to_dir(self, url, dirpath, headers):
-        filepath = self.filename(dirpath, url)
-        logging.debug('downloading file from ' + url + ' to ' + filepath)
+        def dest(filename):
+            return os.path.join(dest_dir, filename.split('/')[-1])
 
-        file = open(filepath, 'wb')
-        counts = {'size': 0, 'chunks': 0}
+        return map(lambda src: self.download_file(src, dest(src)), files)
 
-        # defined as a local closure so that it can access the
-        # variables in local scope
-        # We have to do it this way because:
-        # a) the ftplib interface only supports one argument
-        #    to the named callback
-        # b) you can't reassign a primitive inside a closure,
-        #    but you *can* mutate a key in a dict. This is ....
-        #    not pleasant, but it works.
-        def handle_chunk_callback(data):
-            counts['size'] += len(data)
-            counts['chunks'] += 1
-            file.write(data)
-            if counts['chunks'] % 100 == 0:
-                logging.debug('%i/%i bytes' % \
-                    (counts['size'], headers['content-length']))
+    def download_file(self, src, dest):
+        """
+        Download a single file.
+        """
 
-        self.ftp_client.retrbinary('RETR %s' % url, handle_chunk_callback)
+        content_length = self._headers[src]['content-length']
 
-        logging.debug("downloaded to " + filepath)
-        return filepath
+        def write_and_log_progress(f):
+
+            counts = {
+                'bytes': 0,
+                'chunks': 0}
+
+            def callback(data):
+                f.write(data)
+
+                counts['bytes'] += len(data)
+                counts['chunks'] += 1
+
+                if counts['chunks'] % 100 == 0:
+                    logging.debug('{bytes} bytes of {total}'.format(
+                        total=content_length,
+                        bytes=counts['bytes']))
+
+            return callback
+
+        logging.debug('downloading {src} to {dest}'.format(
+            src=src, dest=dest))
+
+        with open(dest, 'wb') as f:
+            self.ftp.retrbinary('RETR %s' % src, write_and_log_progress(f))
+
+        logging.info('downloaded {dest}'.format(dest=dest))
+
+    def last_modified(self, src):
+        """
+        Get the last modified datetime of the remote file
+        """
+
+        return parse_time(self._headers[src]['last-modified'])
+
+    @property
+    def ftp(self):
+        if self._ftp is None:
+            self._ftp = ftplib.FTP(self.host)
+            self._ftp.login(self.username, self.password)
+            if self.path is not None:
+                self._ftp.cwd(self.path)
+        return self._ftp
+
+    def _list(self, pattern):
+        files = {}
+
+        def parse_ls_line(line):
+            # NOTE: this is VERY brittle, but the OS FTP server doesn't support
+            # the MSLD command (which is intended to produce machine-readable
+            # output) so we don't have many other options.  Here we're trying
+            # to emulate as closely as possible the headers that we would get
+            # back from a HTTP HEAD request
+            cols = re.split(' +', line)
+            return {
+                'permissions': cols[0],
+                'content-length': int(cols[4]),
+                'last-modified': ' '.join(cols[5:8]),
+                'url': cols[-1],
+                'etag': None
+            }
+            files[details['url']] = details
+
+        self.ftp.dir(pattern, parse_ls_line)
+        self._headers.update(files)
+        return files.keys()
