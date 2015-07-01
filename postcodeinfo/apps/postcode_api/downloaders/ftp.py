@@ -7,10 +7,13 @@ import ftplib
 import logging
 import re
 
-from postcode_api.downloaders import Downloader
+from .http import HttpDownloader
 
 
-class FTPDownloader(Downloader):
+log = logging.getLogger(__name__)
+
+
+class FtpDownloader(HttpDownloader):
     """
     Downloads files from a FTP server
     """
@@ -23,14 +26,14 @@ class FTPDownloader(Downloader):
         self._ftp = None
         self._headers = {}
 
-    def download(self, pattern, dest_dir):
+    def download(self, pattern, dest_dir=None):
         """
         Execute the download.
         Returns a list of downloaded files.
         """
 
         files = self._list(pattern)
-        logging.debug('%i files matching %s' % (len(files), pattern))
+        log.debug('%i files matching %s' % (len(files), pattern))
 
         def dest(filename):
             return os.path.join(dest_dir, filename.split('/')[-1])
@@ -57,19 +60,19 @@ class FTPDownloader(Downloader):
                 counts['chunks'] += 1
 
                 if counts['chunks'] % 100 == 0:
-                    logging.debug('{bytes} bytes of {total}'.format(
+                    log.debug('{bytes} bytes of {total}'.format(
                         total=content_length,
                         bytes=counts['bytes']))
 
             return callback
 
-        logging.debug('downloading {src} to {dest}'.format(
+        log.debug('downloading {src} to {dest}'.format(
             src=src, dest=dest))
 
         with open(dest, 'wb') as f:
             self.ftp.retrbinary('RETR %s' % src, write_and_log_progress(f))
 
-        logging.info('downloaded {dest}'.format(dest=dest))
+        log.info('downloaded {dest}'.format(dest=dest))
 
     def last_modified(self, src):
         """

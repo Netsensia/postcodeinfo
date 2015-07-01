@@ -4,7 +4,6 @@ Local filesystem downloader cache mixin class
 """
 
 import datetime
-import logging
 import os
 from os.path import exists, getmtime
 from time import mktime
@@ -38,4 +37,4 @@ class LocalCache(object):
         if exists(dest) and last_modified(dest) >= self.last_modified(src):
             return dest
 
-        return super(LocalCacheMixin, self).download_file(src, dest)
+        return super(LocalCache, self).download_file(src, dest)

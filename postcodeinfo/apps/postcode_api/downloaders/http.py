@@ -10,6 +10,8 @@ import tempfile
 
 import requests
 
+log = logging.getLogger(__name__)
+
 
 class HttpDownloader(object):
     """
@@ -45,22 +47,22 @@ class HttpDownloader(object):
                     f.write(chunk)
                     yield i
 
-        logging.debug('downloading {src} to {dest}'.format(
+        log.debug('downloading {src} to {dest}'.format(
             src=src, dest=dest))
 
         content_length = self._get_headers(src)['content-length']
 
         for chunk in download():
             if chunk % 100 == 0:
-                logging.debug('{0} bytes of {1}'.format(
+                log.debug('{0} bytes of {1}'.format(
                     chunk * self.chunk_size, content_length))
 
-        logging.info('downloaded {dest}'.format(dest=dest))
+        log.info('downloaded {dest}'.format(dest=dest))
 
         return dest
 
     def _get_headers(self, src):
-        if src in self._headers:
+        if src not in self._headers:
             r = requests.head(src, allow_redirects=True)
             self._headers[src] = r.headers
         return self._headers[src]

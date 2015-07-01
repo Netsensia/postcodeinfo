@@ -7,10 +7,6 @@ from postcode_api.importers.addressbase_basic_importer \
 from postcode_api.utils import ZipExtractor
 
 
-def exit_code(key):
-    return {'OK': 0, 'GENERIC_ERROR': 1}[key]
-
-
 class Command(BaseCommand):
     args = '<destination_dir (default /tmp/)>'
 
@@ -29,10 +25,8 @@ class Command(BaseCommand):
         downloaded_files = self._download(options['destination_dir'])
         if downloaded_files:
             self._process_all(downloaded_files)
-            return exit_code('OK')
         else:
             print 'nothing downloaded - nothing to import'
-            return exit_code('OK')
 
     def _download(self, destination_dir):
         print 'downloading'

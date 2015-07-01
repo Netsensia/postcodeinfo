@@ -13,5 +13,3 @@ class Command(BaseCommand):
 
         downloader = LocalAuthoritiesDownloader()
         downloaded_files = downloader.download(destination_dir)
-        print 'returning ' + str(downloaded_files[0])
-        return downloaded_files

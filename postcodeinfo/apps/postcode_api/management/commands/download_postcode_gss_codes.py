@@ -13,4 +13,3 @@ class Command(BaseCommand):
 
         downloader = PostcodeGssCodeDownloader()
         downloaded_files = downloader.download(destination_dir)
-        return downloaded_files

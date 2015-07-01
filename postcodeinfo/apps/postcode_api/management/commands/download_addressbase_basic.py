@@ -13,4 +13,3 @@ class Command(BaseCommand):
 
         downloader = AddressBaseBasicDownloader()
         downloaded_files = downloader.download(destination_dir)
-        return downloaded_files
