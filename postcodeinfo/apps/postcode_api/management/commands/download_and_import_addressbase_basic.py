@@ -1,8 +1,7 @@
 import os
 from django.core.management.base import BaseCommand
 
-from postcode_api.downloaders.addressbase_basic_downloader \
-    import AddressBaseBasicDownloader
+from postcode_api.downloaders import AddressBaseBasicDownloader
 from postcode_api.importers.addressbase_basic_importer \
     import AddressBaseBasicImporter
 from postcode_api.utils import ZipExtractor
@@ -22,32 +21,23 @@ class Command(BaseCommand):
                             dest='destination_dir',
                             default='/tmp/addressbase_basic/')
 
-        # Named (optional) arguments
-        parser.add_argument('--force',
-                            action='store_true',
-                            dest='force',
-                            default=False,
-                            help='Force download '
-                                 'even if previous download exists')
-
     def handle(self, *args, **options):
 
         if not os.path.exists(options['destination_dir']):
             os.makedirs(options['destination_dir'])
 
-        downloaded_file = self._download(
-            options['destination_dir'], options.get('force', False))
-        if downloaded_file:
-            self._process_all(downloaded_file)
+        downloaded_files = self._download(options['destination_dir'])
+        if downloaded_files:
+            self._process_all(downloaded_files)
             return exit_code('OK')
         else:
             print 'nothing downloaded - nothing to import'
             return exit_code('OK')
 
-    def _download(self, destination_dir, force=False):
+    def _download(self, destination_dir):
         print 'downloading'
         downloader = AddressBaseBasicDownloader()
-        return downloader.download(destination_dir, force)
+        return downloader.download(destination_dir)
 
     def _process_all(self, files):
         if isinstance(files, list):
