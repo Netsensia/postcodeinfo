@@ -68,9 +68,11 @@ class HttpDownloader(object):
             self._headers[src] = r.headers
         return self._headers[src]
 
-    def last_modified(self, src):
+    def last_modified(self, src=None):
         """
         Get the last modified datetime of the remote file
         """
 
+        if src is None:
+            src = self.url
         return dateparser.parse(self._get_headers(src)['last-modified'])

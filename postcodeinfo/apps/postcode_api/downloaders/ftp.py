@@ -5,7 +5,11 @@ FTP downloader class
 
 import ftplib
 import logging
+import os
 import re
+import tempfile
+
+from dateutil import parser as dateparser
 
 from .http import HttpDownloader
 
@@ -32,13 +36,18 @@ class FtpDownloader(HttpDownloader):
         Returns a list of downloaded files.
         """
 
+        if dest_dir is None:
+            dest_dir = tempfile.mkdtemp(prefix=self.__class__.__name__)
+
         files = self._list(pattern)
         log.debug('%i files matching %s' % (len(files), pattern))
 
-        def dest(filename):
-            return os.path.join(dest_dir, filename.split('/')[-1])
+        def download(filename):
+            return self.download_file(
+                filename,
+                os.path.join(dest_dir, filename.split('/')[-1]))
 
-        return map(lambda src: self.download_file(src, dest(src)), files)
+        return map(download, files)
 
     def download_file(self, src, dest):
         """
@@ -74,12 +83,14 @@ class FtpDownloader(HttpDownloader):
 
         log.info('downloaded {dest}'.format(dest=dest))
 
+        return dest
+
     def last_modified(self, src):
         """
         Get the last modified datetime of the remote file
         """
 
-        return parse_time(self._headers[src]['last-modified'])
+        return dateparser.parse(self._headers[src]['last-modified'])
 
     @property
     def ftp(self):
@@ -100,15 +111,16 @@ class FtpDownloader(HttpDownloader):
             # to emulate as closely as possible the headers that we would get
             # back from a HTTP HEAD request
             cols = re.split(' +', line)
-            return {
+            details = {
                 'permissions': cols[0],
                 'content-length': int(cols[4]),
                 'last-modified': ' '.join(cols[5:8]),
                 'url': cols[-1],
                 'etag': None
             }
+            print details
             files[details['url']] = details
 
         self.ftp.dir(pattern, parse_ls_line)
         self._headers.update(files)
-        return files.keys()
+        return sorted(files.keys())

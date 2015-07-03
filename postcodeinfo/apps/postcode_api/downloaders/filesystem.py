@@ -18,8 +18,10 @@ def last_modified(filename):
 
     mtime = getmtime(filename)
     if os.stat_float_times():
-        return datetime.datetime.fromtimestamp(mtime)
-    return pytz.UTC.localize(datetime.fromtimestamp(mktime(mtime)))
+        dt = datetime.datetime.fromtimestamp(mtime)
+    else:
+        dt = datetime.fromtimestamp(mktime(mtime))
+    return pytz.UTC.localize(dt)
 
 
 class LocalCache(object):
